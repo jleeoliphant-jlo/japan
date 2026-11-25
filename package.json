@@ -1,0 +1,19 @@
+{
+  "name": "japan-trip-map",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --base=./",
+    "preview": "vite preview",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "lucide": "npm:lucide-static@^0.468.0",
+    "lz-string": "^1.5.0",
+    "maplibre-gl": "^6.19.0"
+  },
+  "devDependencies": {
+    "vite": "^7.2.0"
+  }
+}

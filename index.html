@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#160f1f" />
+    <meta name="description" content="An interactive Japan itinerary for Tokyo, Kyoto, Osaka, and everywhere in between." />
+    <title>Japan Atlas · December 2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&text=%E6%97%85%E6%97%A5%E6%9C%AC%E3%81%AE&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">旅</span>
+        <div><p>THE TRAVEL JOURNAL</p><h1>Japan Atlas<span>.</span></h1></div>
+      </div>
+      <div class="edition"><span></span> TOKYO / KYOTO / OSAKA <b>·</b> DEC 2026</div>
+      <div class="actions">
+        <button type="button" class="button" id="checklists" data-icon="list-checks">Checklist</button>
+        <button type="button" class="button" id="share" data-icon="share-2">Share</button>
+        <button type="button" class="button primary" id="add" data-icon="plus">Add stop</button>
+      </div>
+    </header>
+    <main>
+      <section class="schedule" aria-label="Trip schedule">
+        <div class="schedule-meta"><span>01 / THE ITINERARY</span><span>DECEMBER 23–30, 2026</span></div>
+        <nav class="days" id="days" aria-label="Filter by day"></nav>
+      </section>
+      <section class="workspace" aria-label="Trip planner">
+        <aside class="planner" aria-label="Itinerary stops">
+          <header class="planner-header">
+            <div class="planner-kicker" id="planner-kicker"></div>
+            <h2 id="planner-title"></h2>
+            <p id="planner-caption"></p>
+          </header>
+          <div class="filters">
+            <label class="search"><span data-icon="search"></span><input id="search" type="search" placeholder="Find a stop…" aria-label="Find a stop"></label>
+            <label class="category"><span data-icon="sliders-horizontal"></span><select id="category" aria-label="Category"></select></label>
+          </div>
+          <div class="stops-meta"><span id="stops-count" aria-live="polite"></span><button class="text-button" id="manage" data-icon="ellipsis">Manage trip</button></div>
+          <div class="stop-list" id="stops"></div>
+        </aside>
+        <div class="map-frame">
+          <div id="map" aria-label="Interactive 3D itinerary map"></div>
+          <div class="map-chip"><i></i><span>日本</span><p>JAPAN<small>INTERACTIVE TRIP MAP</small></p></div>
+          <div class="map-tools">
+            <button id="globe" class="tool" data-icon="globe" title="Globe view" aria-label="Globe view" aria-pressed="false"></button>
+            <button id="route" class="tool" data-icon="route" title="Connect stops (not navigation)" aria-label="Connect stops (not navigation)" aria-pressed="false"></button>
+            <button id="fit" class="tool" data-icon="scan" title="Fit visible stops" aria-label="Fit visible stops"></button>
+            <button id="dimension" class="tool dimension" title="Toggle 3D view" aria-label="Toggle 3D view" aria-pressed="true">3D</button>
+          </div>
+          <div class="map-loading" id="map-status" role="status">Loading the 3D map…</div>
+          <button class="button cancel-pick" id="cancel-pick" hidden></button>
+          <div class="map-foot"><span class="legend-dot"></span><span id="map-context"></span></div>
+        </div>
+      </section>
+      <footer class="page-footer"><span>日本の旅 <b>·</b> DEC 2026</span><span>Saved on this device <b>·</b> Share a snapshot to bring others along</span></footer>
+    </main>
+    <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+    <input type="file" id="import-file" accept=".json,application/json" hidden />
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
