@@ -5,6 +5,8 @@ import sprite from 'lucide/sprite.svg?url';
 import './style.css';
 import { categories, days, lists } from './itinerary.js';
 import { decode, encode, mapLink, original, pinned, safeUrl, saveKey, validate } from './storage.js';
+import { directionsUrl, goUrl, itineraryLegs, reorderStop, uberUrl } from './travel.js';
+import { styleUrl, transformBasemap } from './map-style.js';
 
 const $ = (id) => document.getElementById(id);
 const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="${sprite}#${name}"></use></svg>`;
@@ -20,23 +22,33 @@ const button = (text, glyph, className = 'button') => {
   if (glyph) node.insertAdjacentHTML('afterbegin', icon(glyph));
   return node;
 };
+const externalLink = (title, href, glyph, className = 'button') => {
+  const link = element('a', className, title);
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  if (glyph) link.insertAdjacentHTML('afterbegin', icon(glyph));
+  return link;
+};
 const getDay = (id) => days.find((day) => day.id === id);
-const all = { id: 'all', name: 'The whole trip', area: 'Japan', caption: 'Explore every stop from Tokyo to Kyoto and Osaka.', color: '#ffa4b9' };
+const all = { id: 'all', name: 'The whole trip', area: 'Japan', caption: 'Explore every stop from Tokyo to Kyoto and Osaka.', color: '#50a7be' };
 const mobile = matchMedia('(max-width: 760px)');
 const motion = matchMedia('(prefers-reduced-motion: reduce)');
 const dialog = $('dialog');
-const styleUrl = 'https://tiles.openfreemap.org/styles/liberty';
 let trip = original();
 let activeDay = '24';
 let activeCategory = 'all';
 let query = '';
-let showRoute = false;
-let is3D = true;
+let showRoute = true;
+let satellite = true;
 let globeView = false;
 let toastTimer;
 let map;
 let markers = [];
 let selected;
+let focusId;
+let legs = [];
+let order = new Map();
 let popup;
 let mapReady = false;
 let initialZoomAdjusted = false;
@@ -78,6 +90,7 @@ function filtered() {
 }
 
 function paintTabs() {
+  $('day-select').value = activeDay;
   $('days').replaceChildren(...[all, ...days].map((day) => {
     const tab = button('', '', `day-tab ${day.dow ? '' : 'wide-tab'}`);
     tab.dataset.day = day.id;
@@ -97,6 +110,7 @@ function paintTabs() {
 
 function setDay(day) {
   activeDay = day;
+  focusId = null;
   activeCategory = $('category').value = 'all';
   query = $('search').value = '';
   $('stops').scrollTop = 0;
@@ -109,23 +123,104 @@ function syncSelection() {
   document.querySelectorAll('[data-stop-id]').forEach((node) => {
     node.classList.toggle('selected', node.dataset.stopId === selected);
   });
+  const stops = filtered();
+  const index = stops.findIndex((stop) => stop.id === focusId);
+  $('previous-stop').disabled = index <= 0;
+  $('next-stop').disabled = index >= stops.length - 1;
+  $('stop-position').textContent = index < 0 ? 'Explore stops' : `Stop ${index + 1} of ${stops.length}`;
+}
+
+const modeIcons = { walk: 'footprints', train: 'train-front', taxi: 'car-front', bus: 'bus' };
+const money = new Intl.NumberFormat('en-US');
+const estimate = (option) => `~${option.minutes} min${option.fare ? ` · ~¥${money.format(option.fare)}` : ''}`;
+const distanceLabel = (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+
+function legOptions(leg) {
+  const options = element('div', 'leg-options');
+  leg.options.forEach((option) => {
+    const item = element('div', 'leg-option');
+    const name = element('strong', '', option.name);
+    name.insertAdjacentHTML('afterbegin', icon(modeIcons[option.kind]));
+    item.append(name, element('small', '', estimate(option)), element('p', '', option.detail));
+    const links = element('div', 'leg-links');
+    links.append(externalLink('Directions', directionsUrl(leg.from, leg.to, option.mode), 'navigation'));
+    if (option.website) links.append(externalLink('Operator', option.website, 'external-link'));
+    if (option.kind === 'taxi' && option.fare) links.append(
+      externalLink('GO Taxi', goUrl, 'external-link'),
+      externalLink('Uber', uberUrl(leg.from, leg.to), 'external-link'),
+    );
+    item.append(links);
+    options.append(item);
+  });
+  options.append(element('p', 'leg-disclaimer', 'Estimates only. Check current schedules, fares, traffic and rideshare coverage. Map lines connect stops, not street or rail paths.'));
+  return options;
+}
+
+function legCard(leg) {
+  if (!leg.options.length) return element('p', 'leg-pending', 'Travel estimate unavailable · a stop has no map pin.');
+  const recommended = leg.options[0];
+  const card = element('details', 'leg');
+  const summary = element('summary', 'leg-summary');
+  const mark = element('span', 'leg-icon');
+  mark.innerHTML = icon(modeIcons[recommended.kind]);
+  const copy = element('span', 'leg-copy');
+  copy.append(element('small', '', leg.skipsUnpinned ? 'GETTING THERE · VIA NEXT PIN' : 'GETTING THERE'),
+    element('strong', '', recommended.name), element('span', 'leg-estimate', `${estimate(recommended)} · ${distanceLabel(leg.km)} direct`));
+  summary.setAttribute('aria-label', `Getting there: ${leg.from.name} to ${leg.to.name}, ${recommended.name}`);
+  const arrow = element('span', 'leg-arrow');
+  arrow.innerHTML = icon('chevron-down');
+  summary.append(mark, copy, arrow);
+  card.append(summary, legOptions(leg));
+  return card;
+}
+
+function moveSelection(direction) {
+  const stops = filtered();
+  const position = stops.findIndex((stop) => stop.id === focusId);
+  const stop = stops[position + direction];
+  if (!stop) return;
+  const row = [...$('stops').querySelectorAll('[data-stop-id]')].find((node) => node.dataset.stopId === stop.id);
+  row?.scrollIntoView({ block: 'nearest' });
+  selectStop(stop);
+}
+
+function moveStop(stop, direction) {
+  const next = reorderStop(trip.stops, stop.id, direction);
+  if (next === trip.stops) return;
+  trip.stops = next;
+  dialog.close();
+  if (persist()) toast('Stop order updated. Travel connections recalculated.');
+  render();
+  selectStop(stop);
 }
 
 function render() {
   const day = getDay(activeDay) ?? all;
   const stops = filtered();
+  const visibleIds = new Set(stops.map(({ id }) => id));
+  const counters = new Map();
+  order = new Map(trip.stops.map(({ id, day }) => {
+    const number = (counters.get(day) ?? 0) + 1;
+    counters.set(day, number);
+    return [id, number];
+  }));
+  legs = itineraryLegs(trip.stops).filter(({ from, to }) => visibleIds.has(from.id) && visibleIds.has(to.id));
+  const inbound = new Map();
+  for (const leg of legs) {
+    if (!inbound.has(leg.to.id)) inbound.set(leg.to.id, []);
+    inbound.get(leg.to.id).push(leg);
+  }
   document.documentElement.style.setProperty('--active-color', day.color);
   $('planner-kicker').textContent = day.dow ? `DAY ${Number(day.id) - 22}  /  ${day.area.toUpperCase()}` : day.id === 'all' ? 'DEC 23–30  /  JAPAN' : `EXTRAS  /  ${day.area.toUpperCase()}`;
   $('planner-title').textContent = day.name;
   $('planner-caption').textContent = day.caption;
   $('stops-count').textContent = `${stops.length} ${stops.length === 1 ? 'STOP' : 'STOPS'}`;
   $('map-context').textContent = `${day.area.toUpperCase()}  /  ${stops.filter(pinned).length} PINS`;
-  $('stops').replaceChildren(...stops.map((stop) => {
+  $('stops').replaceChildren(...stops.flatMap((stop) => {
     const item = button('', '', 'stop');
     item.dataset.stopId = stop.id;
     item.style.setProperty('--stop-color', getDay(stop.day).color);
-    const mark = element('span', 'stop-icon');
-    mark.innerHTML = icon(categories[stop.category][1]);
+    const mark = element('span', 'stop-icon', String(order.get(stop.id)));
     const copy = element('span', 'stop-copy');
     const title = element('strong', '', stop.name);
     if (stop.book) {
@@ -139,16 +234,17 @@ function render() {
     next.innerHTML = icon('chevron-right');
     item.append(mark, copy, next);
     item.addEventListener('click', () => selectStop(stop));
-    return item;
+    return [...(inbound.get(stop.id) ?? []).map(legCard), item];
   }));
   if (!stops.length) $('stops').append(element('p', 'empty', 'No matching stops. Try another filter or add a stop.'));
   drawMarkers(stops);
+  syncSelection();
 }
 
 function travelCamera(options) {
   if (!map) return;
   if (motion.matches) map.jumpTo(options);
-  else map.flyTo({ ...options, duration: 1250, curve: 1.35 });
+  else map.flyTo({ ...options, duration: 1550, curve: 1.45 });
 }
 
 function fitVisible(instant = false) {
@@ -160,55 +256,24 @@ function fitVisible(instant = false) {
   locations.forEach(({ lng, lat }) => bounds.extend([lng, lat]));
   const camera = map.cameraForBounds(bounds, { padding: mobile.matches ? 48 : 105, maxZoom: 14.4 });
   if (!camera) return;
-  const view = { ...camera, pitch: is3D ? 47 : 0, bearing: is3D ? -19 : 0 };
+  const pitch = satellite ? Math.max(24, Math.min(cameraPitch(), (camera.zoom - 5) * 8)) : 0;
+  const view = { ...camera, pitch, bearing: satellite ? -19 : 0 };
   if (instant) map.jumpTo(view);
   else travelCamera(view);
 }
 
-function colorStyle(_prior, raw) {
-  raw.projection = { type: 'globe' };
-  raw.sky = { 'sky-color': '#211729', 'horizon-color': '#493448', 'fog-color': '#302537',
-    'fog-ground-blend': 0.6, 'horizon-fog-blend': 0.25, 'sky-horizon-blend': 0.65 };
-  const fills = { park: '#283b36', landcover_wood: '#2d443e', landcover_grass: '#334740',
-    landuse_residential: '#332c39', water: '#1b3745', building: '#473c4a' };
-  for (const layer of raw.layers) {
-    const paint = layer.paint ??= {};
-    if (layer.id.includes('shield')) layer.layout = { ...layer.layout, visibility: 'none' };
-    if (layer.type === 'background') paint['background-color'] = '#302a36';
-    if (layer.type === 'raster') Object.assign(paint, { 'raster-saturation': -0.8, 'raster-brightness-min': 0.05, 'raster-brightness-max': 0.32 });
-    if (layer.type === 'fill') {
-      if (layer.id === 'road_area_pattern') layer.layout = { ...layer.layout, visibility: 'none' };
-      else paint['fill-color'] = fills[layer.id] ?? '#3a3440';
-      if (paint['fill-outline-color']) paint['fill-outline-color'] = '#372e3d';
-    }
-    if (layer.type === 'line' && paint['line-color']) {
-      const major = /primary|trunk|motorway/.test(layer.id);
-      paint['line-color'] = layer.id.startsWith('waterway') ? '#284958'
-        : /casing/.test(layer.id) ? '#332936' : major ? '#786371' : '#554954';
-    }
-    if (layer.type === 'fill-extrusion') {
-      Object.assign(paint, { 'fill-extrusion-color': '#886878', 'fill-extrusion-opacity': 0.9 });
-    }
-    if (layer.type === 'symbol' && paint['text-color']) {
-      paint['text-color'] = /water/.test(layer.id) ? '#8caabf' : /label_(city|country|town)/.test(layer.id) ? '#e8d5df' : '#b9aab9';
-      if (paint['text-halo-color']) paint['text-halo-color'] = '#302736';
-      if (/^poi_r/.test(layer.id)) layer.layout = { ...layer.layout, visibility: 'none' };
-      if (layer.layout?.['text-field'] && !layer.id.includes('shield')) layer.layout['text-field'] = ['coalesce', ['get', 'name:en'], ['get', 'name'], ''];
-    }
-  }
-  return raw;
-}
+const cameraPitch = () => mobile.matches ? 54 : 62;
 
-function drawRoute(stops = filtered()) {
+function drawRoute() {
   const source = map?.getSource('itinerary-route');
   if (!source) return;
-  const coordinates = stops.filter(pinned).map(({ lng, lat }) => [lng, lat]);
   source.setData({
     type: 'FeatureCollection',
-    features: showRoute && activeDay !== 'all' && coordinates.length > 1
-      ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }] : [],
+    features: showRoute ? legs.filter((leg) => leg.km > 0).map(({ from, to, key }) => ({
+      type: 'Feature', properties: { key, color: getDay(to.day).color },
+      geometry: { type: 'LineString', coordinates: [[from.lng, from.lat], [to.lng, to.lat]] },
+    })) : [],
   });
-  map.setPaintProperty('itinerary-route-line', 'line-color', (getDay(activeDay) ?? all).color);
 }
 
 function drawMarkers(stops) {
@@ -218,7 +283,7 @@ function drawMarkers(stops) {
   markers.forEach((marker) => marker.remove());
   markers = [];
   for (const stop of stops.filter(pinned)) {
-    const pin = button('', categories[stop.category][1], 'pin');
+    const pin = button(String(order.get(stop.id)), '', 'pin');
     pin.dataset.stopId = stop.id;
     pin.title = stop.name;
     pin.setAttribute('aria-label', stop.name);
@@ -241,7 +306,7 @@ function drawMarkers(stops) {
     });
     markers.push(marker);
   }
-  drawRoute(stops);
+  drawRoute();
 }
 
 function detailContent(stop) {
@@ -251,18 +316,10 @@ function detailContent(stop) {
   content.append(element('p', 'detail-kicker', kicker), element('h3', '', stop.name));
   if (stop.notes) content.append(element('p', 'detail-notes', stop.notes));
   const links = element('div', 'detail-links');
-  const makeLink = (title, href, glyph, className) => {
-    const link = element('a', className, title);
-    link.href = href;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.insertAdjacentHTML('afterbegin', icon(glyph));
-    return link;
-  };
   const website = safeUrl(stop.website);
-  if (website) links.append(makeLink('Website', website, 'external-link', 'button primary'));
-  else if (stop.category !== 'note') links.append(makeLink('Find on Maps', mapLink(stop), 'map-pin', 'button primary'));
-  if (pinned(stop)) links.append(makeLink('Directions', mapLink(stop, true), 'navigation', 'button'));
+  if (website) links.append(externalLink('Website', website, 'external-link', 'button primary'));
+  else if (stop.category !== 'note') links.append(externalLink('Find on Maps', mapLink(stop), 'map-pin', 'button primary'));
+  if (pinned(stop)) links.append(externalLink('Directions', mapLink(stop, true), 'navigation'));
   const edit = button('Edit', 'pencil', 'text-button');
   edit.addEventListener('click', () => { popup?.remove(); openEditor(stop); });
   links.append(edit);
@@ -273,17 +330,20 @@ function detailContent(stop) {
 function selectStop(stop) {
   if (dragId || pickDraft) return;
   popup?.remove();
+  focusId = stop.id;
+  selected = stop.id;
+  syncSelection();
   if (!map || !mapReady || !pinned(stop)) {
     const panel = openDialog('Stop details');
     panel.append(detailContent(stop));
     return;
   }
   if (mobile.matches) document.querySelector('.map-frame').scrollIntoView({ block: 'start', behavior: motion.matches ? 'instant' : 'smooth' });
-  selected = stop.id;
-  syncSelection();
+  initialZoomAdjusted = true;
   globeView = false;
   $('globe').setAttribute('aria-pressed', 'false');
-  travelCamera({ center: [stop.lng, stop.lat], zoom: Math.max(16, Math.min(map.getZoom(), 17.1)), pitch: is3D ? 51 : 0, offset: [0, mobile.matches ? 52 : 70] });
+  travelCamera({ center: [stop.lng, stop.lat], zoom: Math.max(16.15, Math.min(map.getZoom(), 17.1)),
+    pitch: satellite ? cameraPitch() : 0, bearing: satellite ? map.getBearing() - 12 : 0, offset: [0, mobile.matches ? 52 : 70] });
   popup = new maplibregl.Popup({ offset: 16, maxWidth: '300px', anchor: 'bottom', focusAfterOpen: false })
     .setLngLat([stop.lng, stop.lat]).setDOMContent(detailContent(stop)).addTo(map);
   popup.on('close', () => { selected = null; syncSelection(); });
@@ -293,27 +353,31 @@ function initMap() {
   const status = $('map-status');
   try {
     maplibregl.setWorkerUrl(mapWorker);
-    map = new maplibregl.Map({ container: 'map', style: styleUrl, transformStyle: colorStyle,
-      center: [139.7018, 35.6659], zoom: 13.5, pitch: 48, bearing: -19, maxPitch: 72,
-      attributionControl: { compact: true }, canvasContextAttributes: { antialias: true } });
+    map = new maplibregl.Map({ container: 'map', style: styleUrl, transformStyle: transformBasemap(true),
+      center: [139.7018, 35.6659], zoom: 13.5, pitch: cameraPitch(), bearing: -19, maxPitch: 75,
+      maxTileCacheZoomLevels: mobile.matches ? 2 : 4, pixelRatio: Math.min(devicePixelRatio, 1.65),
+      attributionControl: { compact: true }, canvasContextAttributes: { antialias: !mobile.matches } });
   } catch {
     status.textContent = '3D is unavailable on this device. The itinerary and directions still work.';
-    document.querySelector('.map-tools').hidden = true;
+    document.querySelector('.map-toolbar').hidden = true;
     return;
   }
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.on('style.load', () => {
     if (!map.getSource('itinerary-route')) {
       map.addSource('itinerary-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'itinerary-route-outline', type: 'line', source: 'itinerary-route', paint: {
+        'line-color': '#142431', 'line-width': 5.5, 'line-opacity': 0.8, 'line-dasharray': [1, 1],
+      } });
       map.addLayer({ id: 'itinerary-route-line', type: 'line', source: 'itinerary-route', paint: {
-        'line-color': '#ffa4b9', 'line-width': 2.5, 'line-opacity': 0.7, 'line-dasharray': [1, 2],
+        'line-color': ['get', 'color'], 'line-width': 3.5, 'line-opacity': 0.92, 'line-dasharray': [1.5, 1.6],
       } });
     }
     drawRoute();
-  });
-  map.once('load', () => {
     mapReady = true;
     status.hidden = true;
+  });
+  map.once('load', () => {
     if (!initialZoomAdjusted) fitVisible(true);
   });
   map.on('error', () => {
@@ -326,7 +390,30 @@ function initMap() {
     stopPicking();
     openEditor(draft);
   });
+  map.on('click', 'itinerary-route-outline', ({ features }) => {
+    if (pickDraft || dragId) return;
+    const leg = legs.find(({ key }) => key === features?.[0]?.properties.key);
+    if (!leg) return;
+    popup?.remove();
+    const body = openDialog('Getting there');
+    body.append(element('p', 'dialog-copy', `${leg.from.name} → ${leg.to.name} · ${distanceLabel(leg.km)} direct`), legOptions(leg));
+  });
   drawMarkers(filtered());
+}
+
+function switchBasemap(useSatellite) {
+  if (!map || satellite === useSatellite) return;
+  satellite = useSatellite;
+  $('satellite').setAttribute('aria-pressed', String(satellite));
+  $('street-map').setAttribute('aria-pressed', String(!satellite));
+  $('map-mode').textContent = satellite ? 'SATELLITE · 3D TERRAIN' : 'STREET MAP';
+  $('map-status').textContent = satellite ? 'Loading satellite and elevation…' : 'Loading street map…';
+  $('map-status').hidden = false;
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+  mapReady = false;
+  map.setStyle(styleUrl, { diff: false, transformStyle: transformBasemap(satellite) });
+  travelCamera({ center, zoom, pitch: satellite && !globeView ? cameraPitch() : 0, bearing: satellite && !globeView ? -19 : 0 });
 }
 
 function openDialog(title) {
@@ -471,6 +558,23 @@ function openEditor(draft) {
       drag.addEventListener('click', () => startDragging(trip.stops.find((stop) => stop.id === draft.id)));
       $('edit-tools').append(drag);
     }
+    const reorder = element('div', 'editor-order full');
+    reorder.append(element('span', '', 'Stop order'));
+    for (const [direction, label, glyph] of [[-1, 'Move earlier', 'arrow-up'], [1, 'Move later', 'arrow-down']]) {
+      const move = button(label, glyph, 'button');
+      move.disabled = reorderStop(trip.stops, draft.id, direction) === trip.stops;
+      move.addEventListener('click', () => {
+        const stored = trip.stops.find(({ id }) => id === draft.id);
+        const changed = readForm();
+        if (Object.keys(changed).some((key) => changed[key] !== stored[key])) {
+          toast('Save your other changes before changing the stop order.');
+          return;
+        }
+        moveStop(stored, direction);
+      });
+      reorder.append(move);
+    }
+    form.querySelector('.editor-actions').before(reorder);
   }
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -591,20 +695,19 @@ function openManage() {
 
 document.querySelectorAll('[data-icon]').forEach((node) => node.insertAdjacentHTML('afterbegin', icon(node.dataset.icon)));
 $('category').replaceChildren(...optionList([['all', 'All categories'], ...Object.entries(categories).map(([key, [name]]) => [key, name])]));
+$('day-select').replaceChildren(...optionList([all, ...days].map(({ id, dow, name }) => [id, dow ? `${dow} Dec ${id} · ${name}` : name])));
+$('day-select').addEventListener('change', (event) => setDay(event.target.value));
 $('category').addEventListener('change', (event) => { activeCategory = event.target.value; render(); });
 $('search').addEventListener('input', (event) => { query = event.target.value.trim().toLocaleLowerCase(); render(); });
 $('add').addEventListener('click', () => openEditor());
 $('checklists').addEventListener('click', openChecklists);
 $('share').addEventListener('click', openShare);
 $('manage').addEventListener('click', openManage);
+$('previous-stop').addEventListener('click', () => moveSelection(-1));
+$('next-stop').addEventListener('click', () => moveSelection(1));
 $('fit').addEventListener('click', () => { initialZoomAdjusted = true; fitVisible(); });
-$('dimension').addEventListener('click', (event) => {
-  if (!map) return;
-  is3D = !is3D;
-  event.currentTarget.textContent = is3D ? '3D' : '2D';
-  event.currentTarget.setAttribute('aria-pressed', String(is3D));
-  travelCamera({ pitch: is3D && !globeView ? 48 : 0, bearing: is3D ? -19 : 0 });
-});
+$('satellite').addEventListener('click', () => switchBasemap(true));
+$('street-map').addEventListener('click', () => switchBasemap(false));
 $('globe').addEventListener('click', () => {
   if (!map) return;
   initialZoomAdjusted = true;
@@ -615,11 +718,10 @@ $('globe').addEventListener('click', () => {
   travelCamera({ center: [138, 34], zoom: 2.1, pitch: 0, bearing: 0 });
 });
 $('route').addEventListener('click', (event) => {
-  if (activeDay === 'all') { toast('Choose a day to connect its stops.'); return; }
   showRoute = !showRoute;
   event.currentTarget.setAttribute('aria-pressed', String(showRoute));
   drawRoute();
-  if (showRoute) toast('Pins connected in itinerary order, not by roads.');
+  if (showRoute) toast('Dashed lines show stop order. Open a travel leg for directions.');
 });
 $('cancel-pick').addEventListener('click', () => {
   if (pickDraft) { const draft = pickDraft; stopPicking(); openEditor(draft); }

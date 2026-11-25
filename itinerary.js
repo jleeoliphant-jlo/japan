@@ -1,14 +1,14 @@
 export const days = [
-  { id: '23', dow: 'Wed', name: 'Touchdown Tokyo', area: 'Tokyo', caption: 'Arrivals, the Narita Express, and a quiet first night.', color: '#ffc880' },
-  { id: '24', dow: 'Thu', name: 'Harajuku to Shibuya', area: 'Tokyo', caption: 'Coffee, quiet shrine paths, vintage finds, and Christmas lights.', color: '#ffa4b9' },
-  { id: '25', dow: 'Fri', name: 'Christmas in Tokyo', area: 'Tokyo', caption: 'Asakusa markets, Ginza flagships, and cocktails after dark.', color: '#f7d27f' },
-  { id: '26', dow: 'Sat', name: 'On to Kyoto', area: 'Kyoto', caption: 'Ride the Shinkansen, then explore Arashiyama and Gion.', color: '#a0d8c2' },
-  { id: '27', dow: 'Sun', name: 'Old Japan', area: 'Kyoto', caption: 'Red gates, historic lanes, market bites, and a tea ceremony.', color: '#9cc8f5' },
-  { id: '28', dow: 'Mon', name: 'Osaka food tour', area: 'Osaka', caption: 'Castle grounds, street food, neon, and an optional Nara detour.', color: '#bca7ff' },
-  { id: '29', dow: 'Tue', name: 'Back to Tokyo', area: 'Tokyo', caption: 'Immersive art, tower views, and a Shinjuku night out.', color: '#f5a487' },
-  { id: '30', dow: 'Wed', name: 'Bye, Japan', area: 'Tokyo', caption: 'One last breakfast and snack haul before flying home.', color: '#a7d7e6' },
-  { id: 'ideas', name: 'Extra Tokyo ideas', area: 'Tokyo', caption: 'A few more stops if there’s time to spare.', color: '#b4db97' },
-  { id: 'akane', name: 'Akane’s picks', area: 'Tokyo', caption: 'Favorite restaurants, cafés, and nights out.', color: '#cfb7ff' },
+  { id: '23', dow: 'Wed', name: 'Touchdown Tokyo', area: 'Tokyo', caption: 'Arrivals, the Narita Express, and a quiet first night.', color: '#e7b454' },
+  { id: '24', dow: 'Thu', name: 'Harajuku to Shibuya', area: 'Tokyo', caption: 'Coffee, quiet shrine paths, vintage finds, and Christmas lights.', color: '#66d3d0' },
+  { id: '25', dow: 'Fri', name: 'Christmas in Tokyo', area: 'Tokyo', caption: 'Asakusa markets, Ginza flagships, and cocktails after dark.', color: '#efd17e' },
+  { id: '26', dow: 'Sat', name: 'On to Kyoto', area: 'Kyoto', caption: 'Ride the Shinkansen, then explore Arashiyama and Gion.', color: '#a6ce83' },
+  { id: '27', dow: 'Sun', name: 'Old Japan', area: 'Kyoto', caption: 'Red gates, historic lanes, market bites, and a tea ceremony.', color: '#8cc3ef' },
+  { id: '28', dow: 'Mon', name: 'Osaka food tour', area: 'Osaka', caption: 'Castle grounds, street food, neon, and an optional Nara detour.', color: '#f2ad71' },
+  { id: '29', dow: 'Tue', name: 'Back to Tokyo', area: 'Tokyo', caption: 'Immersive art, tower views, and a Shinjuku night out.', color: '#d5ce86' },
+  { id: '30', dow: 'Wed', name: 'Bye, Japan', area: 'Tokyo', caption: 'One last breakfast and snack haul before flying home.', color: '#8fd4af' },
+  { id: 'ideas', name: 'Extra Tokyo ideas', area: 'Tokyo', caption: 'A few more stops if there’s time to spare.', color: '#b1d5a4' },
+  { id: 'akane', name: 'Akane’s picks', area: 'Tokyo', caption: 'Favorite restaurants, cafés, and nights out.', color: '#b0c2e6' },
 ];
 
 export const categories = {
@@ -107,7 +107,8 @@ Dōtonbori|sight|34.66874,135.50131|After dark|https://www.dotonbori.or.jp/en/|N
 Glico Running Man|sight|34.66900,135.50108|Evening||Photo from the Ebisu Bridge.
 Don Quijote Dōtonbori|shopping|34.66906,135.50338|Evening|https://www.donki.com/en/|The giant store with the Ferris wheel.
 Harukas 300|sight|34.64618,135.51394|Optional PM|https://www.abenoharukas-300.jp/en/|Optional observation deck in Abeno.
-Osaka Station → Kyoto|transport|34.70248,135.49595|Evening|https://www.westjr.co.jp/global/en/|Return to Kyoto by train.`,
+Osaka Station → Kyoto|transport|34.70248,135.49595|Evening|https://www.westjr.co.jp/global/en/|Board the JR Kyoto Line Special Rapid for Kyoto.
+Kyoto Station (return)|transport|34.98585,135.75877|Evening|https://www.westjr.co.jp/global/en/|Arrive back in Kyoto after the Osaka food tour.`,
   '29': `
 Breakfast in Kyoto|note||Morning||Get breakfast and coffee before the train.
 Kyoto Station → Tokyo|transport|34.98585,135.75877|~9:30 AM*|https://smart-ex.jp/en/|Book the return Shinkansen.

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#160f1f" />
+    <meta name="theme-color" content="#f1efe8" />
     <meta name="description" content="An interactive Japan itinerary for Tokyo, Kyoto, Osaka, and everywhere in between." />
     <title>Japan Atlas · December 2026</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +15,7 @@
     <header class="masthead">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">旅</span>
-        <div><p>THE TRAVEL JOURNAL</p><h1>Japan Atlas<span>.</span></h1></div>
+        <div><p>THE WINTER EDITION</p><h1>Japan Atlas<span>.</span></h1></div>
       </div>
       <div class="edition"><span></span> TOKYO / KYOTO / OSAKA <b>·</b> DEC 2026</div>
       <div class="actions">
@@ -27,6 +27,7 @@
     <main>
       <section class="schedule" aria-label="Trip schedule">
         <div class="schedule-meta"><span>01 / THE ITINERARY</span><span>DECEMBER 23–30, 2026</span></div>
+        <label class="day-picker"><span>Itinerary day</span><select id="day-select"></select></label>
         <nav class="days" id="days" aria-label="Filter by day"></nav>
       </section>
       <section class="workspace" aria-label="Trip planner">
@@ -41,20 +42,32 @@
             <label class="category"><span data-icon="sliders-horizontal"></span><select id="category" aria-label="Category"></select></label>
           </div>
           <div class="stops-meta"><span id="stops-count" aria-live="polite"></span><button class="text-button" id="manage" data-icon="ellipsis">Manage trip</button></div>
+          <div class="stop-nav" aria-label="Navigate stops">
+            <button class="button" id="previous-stop" data-icon="chevron-left">Previous</button>
+            <span id="stop-position" aria-live="polite"></span>
+            <button class="button" id="next-stop" data-icon="chevron-right">Next</button>
+          </div>
           <div class="stop-list" id="stops"></div>
         </aside>
         <div class="map-frame">
           <div id="map" aria-label="Interactive 3D itinerary map"></div>
-          <div class="map-chip"><i></i><span>日本</span><p>JAPAN<small>INTERACTIVE TRIP MAP</small></p></div>
-          <div class="map-tools">
-            <button id="globe" class="tool" data-icon="globe" title="Globe view" aria-label="Globe view" aria-pressed="false"></button>
-            <button id="route" class="tool" data-icon="route" title="Connect stops (not navigation)" aria-label="Connect stops (not navigation)" aria-pressed="false"></button>
-            <button id="fit" class="tool" data-icon="scan" title="Fit visible stops" aria-label="Fit visible stops"></button>
-            <button id="dimension" class="tool dimension" title="Toggle 3D view" aria-label="Toggle 3D view" aria-pressed="true">3D</button>
+          <div class="map-toolbar">
+            <div class="map-chip"><span>日本</span><p>JAPAN<small id="map-mode">SATELLITE · 3D TERRAIN</small></p></div>
+            <div class="map-tools">
+              <div class="basemaps" aria-label="Map style">
+                <button id="satellite" class="tool" data-icon="layers" aria-pressed="true">Satellite 3D</button>
+                <button id="street-map" class="tool" data-icon="map" aria-pressed="false">Map</button>
+              </div>
+              <div class="map-controls">
+                <button id="globe" class="tool" data-icon="globe" title="Globe view" aria-label="Globe view" aria-pressed="false"></button>
+                <button id="route" class="tool" data-icon="route" title="Show itinerary connections" aria-label="Show itinerary connections" aria-pressed="true"></button>
+                <button id="fit" class="tool" data-icon="scan" title="Fit visible stops" aria-label="Fit visible stops"></button>
+              </div>
+            </div>
           </div>
           <div class="map-loading" id="map-status" role="status">Loading the 3D map…</div>
           <button class="button cancel-pick" id="cancel-pick" hidden></button>
-          <div class="map-foot"><span class="legend-dot"></span><span id="map-context"></span></div>
+          <div class="map-foot"><span class="legend-dot"></span><span id="map-context"></span><span class="legend-separator"></span><span>Dashed lines = stop order</span></div>
         </div>
       </section>
       <footer class="page-footer"><span>日本の旅 <b>·</b> DEC 2026</span><span>Saved on this device <b>·</b> Share a snapshot to bring others along</span></footer>
